@@ -72,7 +72,18 @@ export default function ExpressPage() {
         .eq('is_active', true)
         .order('order')
 
-      if (error) throw error
+      if (error) {
+        console.error('Error de Supabase:', error)
+        alert('Error al cargar las fórmulas. Por favor, verifica que hayas ejecutado el script 002_express_formulas.sql en Supabase.')
+        throw error
+      }
+      
+      if (!data || data.length === 0) {
+        console.warn('No se encontraron fórmulas en la base de datos')
+        alert('No hay fórmulas configuradas. Por favor, ejecuta el script 002_express_formulas.sql en Supabase.')
+      }
+      
+      console.log('Fórmulas cargadas:', data?.length || 0)
       setFormulas(data || [])
     } catch (error) {
       console.error('Error loading formulas:', error)

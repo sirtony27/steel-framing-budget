@@ -21,9 +21,9 @@ CREATE TABLE IF NOT EXISTS express_formulas (
 );
 
 -- Índices
-CREATE INDEX idx_express_formulas_category ON express_formulas(category_id);
-CREATE INDEX idx_express_formulas_material ON express_formulas(material_catalog_id);
-CREATE INDEX idx_express_formulas_active ON express_formulas(is_active);
+CREATE INDEX IF NOT EXISTS idx_express_formulas_category ON express_formulas(category_id);
+CREATE INDEX IF NOT EXISTS idx_express_formulas_material ON express_formulas(material_catalog_id);
+CREATE INDEX IF NOT EXISTS idx_express_formulas_active ON express_formulas(is_active);
 
 -- Tabla para historial de precios
 CREATE TABLE IF NOT EXISTS price_history (
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS price_history (
 );
 
 -- Índice
-CREATE INDEX idx_price_history_material ON price_history(material_catalog_id);
+CREATE INDEX IF NOT EXISTS idx_price_history_material ON price_history(material_catalog_id);
 
 -- Función para registrar cambios de precio
 CREATE OR REPLACE FUNCTION log_price_change()
@@ -50,54 +50,139 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger para registrar cambios
+-- Eliminar trigger si existe
+DROP TRIGGER IF EXISTS trigger_log_price_change ON material_catalog;
+
+-- Crear trigger para registrar cambios
 CREATE TRIGGER trigger_log_price_change
     AFTER UPDATE ON material_catalog
     FOR EACH ROW
     EXECUTE FUNCTION log_price_change();
 
 -- =============================================
+-- LIMPIAR DATOS PREVIOS
+-- =============================================
+DELETE FROM express_formulas;
+
+-- =============================================
 -- DATOS INICIALES - Fórmulas Express
 -- =============================================
 
--- Fórmulas para Estructura (1 planta, calidad media)
-INSERT INTO express_formulas (name, description, category_id, material_catalog_id, quantity_per_m2, house_type, quality_level) VALUES
-    ('Perfil C 100mm estructura', 'Montantes verticales', 
-     (SELECT id FROM categories WHERE name = 'Estructura'),
-     (SELECT id FROM material_catalog WHERE name = 'Perfil C 100mm x 0.9mm'),
-     0.8, '1planta', 'media'),
-    
-    ('Perfil U 100mm estructura', 'Soleras superiores e inferiores',
-     (SELECT id FROM categories WHERE name = 'Estructura'),
-     (SELECT id FROM material_catalog WHERE name = 'Perfil U 100mm x 0.9mm'),
-     0.6, '1planta', 'media'),
-    
-    ('Perfil C 70mm tabiques', 'Tabiques divisorios internos',
-     (SELECT id FROM categories WHERE name = 'Estructura'),
-     (SELECT id FROM material_catalog WHERE name = 'Perfil C 70mm x 0.9mm'),
-     1.2, '1planta', 'media');
+-- NOTA: Los PGC (montantes verticales) van cada 40cm
+-- Por lo tanto: en 1 metro lineal = 2.5 montantes (1m / 0.4m = 2.5)
+-- Para calcular por m²: necesitamos considerar altura promedio 2.4m
+-- Montantes por m²: 2.5 montantes/m × 2.4m altura = 6 metros lineales / m²
+-- PERO considerando que es por m² de piso: 1/0.4 = 2.5 montantes por metro de perímetro
+-- Simplificando: ~2.5 metros lineales de PGC C por m² de construcción
 
--- Fórmulas para Cerramientos
-INSERT INTO express_formulas (name, description, category_id, material_catalog_id, quantity_per_m2, house_type, quality_level) VALUES
-    ('Placa de Yeso interior', 'Placas para paredes interiores',
-     (SELECT id FROM categories WHERE name = 'Cerramientos'),
-     (SELECT id FROM material_catalog WHERE name = 'Placa de Yeso 12.5mm'),
-     0.45, 'todos', 'media'),
+-- Fórmulas para ESTRUCTURA - Calidad MEDIA
+INSERT INTO express_formulas (name, description, category_id, material_catalog_id, quantity_per_m2, house_type, quality_level, "order") VALUES
+    -- Montantes verticales (PGC cada 40cm)
+    ('Montantes verticales PGC', 'Perfiles C verticales cada 40cm', 
+     (SELECT id FROM categories WHERE name = 'Estructura' LIMIT 1),
+     (SELECT id FROM material_catalog WHERE name LIKE '%Perfil C 100%' LIMIT 1),
+     2.5, '1planta', 'media', 1),
     
-    ('Placa OSB exterior', 'Placas estructurales exteriores',
-     (SELECT id FROM categories WHERE name = 'Cerramientos'),
-     (SELECT id FROM material_catalog WHERE name = 'Placa OSB 11mm'),
-     0.35, 'todos', 'media');
+    -- Soleras horizontales
+    ('Soleras horizontales PGU', 'Perfiles U superior e inferior',
+     (SELECT id FROM categories WHERE name = 'Estructura' LIMIT 1),
+     (SELECT id FROM material_catalog WHERE name LIKE '%Perfil U 100%' LIMIT 1),
+     0.5, '1planta', 'media', 2),
+    
+    -- Tabiques internos
+    ('Tabiques divisorios', 'Perfiles para paredes internas',
+     (SELECT id FROM categories WHERE name = 'Estructura' LIMIT 1),
+     (SELECT id FROM material_catalog WHERE name LIKE '%Perfil C 70%' LIMIT 1),
+     1.8, '1planta', 'media', 3);
 
--- Fórmulas para Aislación
-INSERT INTO express_formulas (name, description, category_id, material_catalog_id, quantity_per_m2, house_type, quality_level) VALUES
-    ('Lana de Vidrio 50mm', 'Aislación térmica estándar',
-     (SELECT id FROM categories WHERE name = 'Aislación'),
-     (SELECT id FROM material_catalog WHERE name = 'Lana de Vidrio 50mm'),
-     1.0, 'todos', 'media'),
+-- Fórmulas para DOS PLANTAS
+INSERT INTO express_formulas (name, description, category_id, material_catalog_id, quantity_per_m2, house_type, quality_level, "order") VALUES
+    ('Montantes verticales PGC 2P', 'Perfiles C para 2 plantas', 
+     (SELECT id FROM categories WHERE name = 'Estructura' LIMIT 1),
+     (SELECT id FROM material_catalog WHERE name LIKE '%Perfil C 100%' LIMIT 1),
+     3.2, '2plantas', 'media', 11),
     
-    ('Barrera de vapor', 'Barrera de humedad',
-     (SELECT id FROM categories WHERE name = 'Aislación'),
+    ('Soleras horizontales PGU 2P', 'Perfiles U para 2 plantas',
+     (SELECT id FROM categories WHERE name = 'Estructura' LIMIT 1),
+     (SELECT id FROM material_catalog WHERE name LIKE '%Perfil U 100%' LIMIT 1),
+     0.8, '2plantas', 'media', 12);
+
+-- Fórmulas para CERRAMIENTOS
+INSERT INTO express_formulas (name, description, category_id, material_catalog_id, quantity_per_m2, house_type, quality_level, "order") VALUES
+    ('Placas interiores', 'Durlock/Yeso para interior',
+     (SELECT id FROM categories WHERE name = 'Cerramientos' LIMIT 1),
+     (SELECT id FROM material_catalog WHERE name LIKE '%Placa%Yeso%' LIMIT 1),
+     2.2, 'todos', 'media', 21),
+    
+    ('Placas exteriores', 'OSB o cementicias exterior',
+     (SELECT id FROM categories WHERE name = 'Cerramientos' LIMIT 1),
+     (SELECT id FROM material_catalog WHERE name LIKE '%OSB%' LIMIT 1),
+     1.1, 'todos', 'media', 22);
+
+-- Fórmulas para AISLACIÓN
+INSERT INTO express_formulas (name, description, category_id, material_catalog_id, quantity_per_m2, house_type, quality_level, "order") VALUES
+    ('Aislante térmico', 'Lana de vidrio o similar',
+     (SELECT id FROM categories WHERE name = 'Aislación' LIMIT 1),
+     (SELECT id FROM material_catalog WHERE name LIKE '%Lana%' LIMIT 1),
+     1.1, 'todos', 'media', 31),
+    
+    ('Barrera vapor', 'Film o membrana impermeable',
+     (SELECT id FROM categories WHERE name = 'Aislación' LIMIT 1),
+     (SELECT id FROM material_catalog WHERE name LIKE '%Barrera%' OR name LIKE '%Film%' LIMIT 1),
+     1.1, 'todos', 'media', 32);
+
+-- Fórmulas para FIJACIONES
+INSERT INTO express_formulas (name, description, category_id, material_catalog_id, quantity_per_m2, house_type, quality_level, "order") VALUES
+    ('Tornillos autoperforantes', 'Tornillos para estructura',
+     (SELECT id FROM categories WHERE name = 'Fijaciones' LIMIT 1),
+     (SELECT id FROM material_catalog WHERE name LIKE '%Tornillo%' LIMIT 1),
+     0.05, 'todos', 'media', 41);
+
+-- Fórmulas OPCIONALES
+INSERT INTO express_formulas (name, description, category_id, material_catalog_id, quantity_per_m2, house_type, quality_level, is_optional, "order") VALUES
+    ('Instalación eléctrica', 'Materiales eléctricos básicos',
+     (SELECT id FROM categories WHERE name = 'Instalaciones' LIMIT 1),
+     (SELECT id FROM material_catalog WHERE name LIKE '%Cable%' LIMIT 1),
+     0.8, 'todos', 'media', true, 51),
+    
+    ('Canaletas para cables', 'Conductos para instalaciones',
+     (SELECT id FROM categories WHERE name = 'Instalaciones' LIMIT 1),
+     (SELECT id FROM material_catalog WHERE name LIKE '%Caño%' OR name LIKE '%Conducto%' LIMIT 1),
+     0.4, 'todos', 'media', true, 52);
+
+-- =============================================
+-- VERIFICACIÓN
+-- =============================================
+-- Contar fórmulas insertadas
+SELECT 
+    COUNT(*) as total_formulas,
+    COUNT(CASE WHEN is_optional = true THEN 1 END) as opcionales,
+    COUNT(CASE WHEN is_optional = false THEN 1 END) as obligatorias
+FROM express_formulas;
+
+-- Ver fórmulas por categoría
+SELECT 
+    c.name as categoria,
+    COUNT(ef.id) as cantidad_formulas
+FROM categories c
+LEFT JOIN express_formulas ef ON ef.category_id = c.id
+GROUP BY c.name
+ORDER BY c.name;
+
+-- Mostrar todas las fórmulas creadas
+SELECT 
+    ef.name,
+    ef.quantity_per_m2,
+    ef.house_type,
+    ef.quality_level,
+    ef.is_optional,
+    c.name as categoria,
+    m.name as material
+FROM express_formulas ef
+LEFT JOIN categories c ON ef.category_id = c.id
+LEFT JOIN material_catalog m ON ef.material_catalog_id = m.id
+ORDER BY ef."order";
+
      (SELECT id FROM material_catalog WHERE name = 'Barrera de vapor'),
      1.1, 'todos', 'media');
 
