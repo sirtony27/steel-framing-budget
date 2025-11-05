@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
-import { Zap, FolderOpen, Package, Calculator } from "lucide-react";
+import { Zap, FolderOpen, Package, Calculator, Settings } from "lucide-react";
 
 export default function Home() {
   return (
@@ -65,7 +65,7 @@ export default function Home() {
           </div>
 
           {/* Opciones Secundarias */}
-          <div className="grid md:grid-cols-2 gap-8 mb-16">
+          <div className="grid md:grid-cols-3 gap-8 mb-16">
             
             {/* Catálogo */}
             <Link href="/catalog" className="block group">
@@ -99,6 +99,25 @@ export default function Home() {
                     </h3>
                     <p className="text-lg text-slate-600 leading-relaxed">
                       Modelos de casas predefinidas para usar
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+
+            {/* Configuración - NUEVO */}
+            <Link href="/settings" className="block group">
+              <Card className="border-2 border-green-200 hover:border-green-400 transition-all bg-white">
+                <CardContent className="p-8 flex items-start gap-6">
+                  <div className="p-4 bg-green-100 rounded-2xl group-hover:bg-green-600 transition-colors">
+                    <Settings className="h-12 w-12 text-green-700 group-hover:text-white transition-colors" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-2xl font-bold text-slate-900 mb-2">
+                      Configuración
+                    </h3>
+                    <p className="text-lg text-slate-600 leading-relaxed">
+                      Precio por m² y márgenes de ganancia
                     </p>
                   </div>
                 </CardContent>

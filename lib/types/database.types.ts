@@ -1,6 +1,14 @@
 export type ProjectStatus = 'draft' | 'in_review' | 'approved' | 'rejected' | 'completed'
 export type ItemType = 'material' | 'labor' | 'equipment' | 'service'
 
+export interface SystemConfig {
+  id: string
+  config_key: string
+  config_value: string
+  description: string | null
+  updated_at: string
+}
+
 export interface Category {
   id: string
   name: string
